@@ -65,3 +65,9 @@ struct Nest {
     #[sea_orm(nested)]
     _foo: SimpleTest,
 }
+
+#[derive(FromQueryResult, DerivePartialModel)]
+struct NestOption {
+    #[sea_orm(nested)]
+    _foo: Option<SimpleTest>,
+}
