@@ -182,7 +182,7 @@ where
     ///         .into_partial_model::<PartialCake>()
     ///         .into_statement(DbBackend::Sqlite)
     ///         .to_string(),
-    ///     r#"SELECT "cake"."name", UPPER("cake"."name") AS "name_upper" FROM "cake""#
+    ///     r#"SELECT "cake"."name" AS "name", UPPER("cake"."name") AS "name_upper" FROM "cake""#
     /// );
     /// # }
     /// ```
