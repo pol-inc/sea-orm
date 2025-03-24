@@ -10,6 +10,7 @@ use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::Expr;
 
+use syn::Generics;
 use syn::Meta;
 use syn::Type;
 
@@ -21,7 +22,6 @@ use self::util::GetAsKVMeta;
 enum Error {
     InputNotStruct,
     EntityNotSpecified,
-    NotSupportGeneric(Span),
     OverlappingAttributes(Span),
     Syn(syn::Error),
 }
@@ -40,15 +40,12 @@ enum ColumnAs {
 struct DerivePartialModel {
     entity: Option<syn::Type>,
     ident: syn::Ident,
+    generics: Generics,
     fields: Vec<ColumnAs>,
 }
 
 impl DerivePartialModel {
     fn new(input: syn::DeriveInput) -> Result<Self, Error> {
-        if !input.generics.params.is_empty() {
-            return Err(Error::NotSupportGeneric(input.generics.params.span()));
-        }
-
         let syn::Data::Struct(
             syn::DataStruct {
                 fields: syn::Fields::Named(syn::FieldsNamed { named: fields, .. }),
@@ -139,6 +136,7 @@ impl DerivePartialModel {
         Ok(Self {
             entity,
             ident: input.ident,
+            generics: input.generics,
             fields: column_as_list,
         })
     }
@@ -149,9 +147,10 @@ impl DerivePartialModel {
 
     fn impl_partial_model_trait(&self) -> TokenStream {
         let select_ident = format_ident!("select");
-        let DerivePartialModel {
+        let Self {
             entity,
             ident,
+            generics,
             fields,
         } = self;
         let select_col_code_gen = fields.iter().map(|col_as| match col_as {
@@ -207,9 +206,11 @@ impl DerivePartialModel {
             },
         });
 
+        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
         quote! {
             #[automatically_derived]
-            impl sea_orm::PartialModelTrait for #ident{
+            impl #impl_generics sea_orm::PartialModelTrait for #ident #ty_generics #where_clause {
                 fn select_cols<S: sea_orm::SelectColumns>(#select_ident: S) -> S {
                     Self::select_cols_nested(#select_ident, None)
                 }
@@ -228,9 +229,6 @@ pub fn expand_derive_partial_model(input: syn::DeriveInput) -> syn::Result<Token
 
     match DerivePartialModel::new(input) {
         Ok(partial_model) => partial_model.expand(),
-        Err(Error::NotSupportGeneric(span)) => Ok(quote_spanned! {
-            span => compile_error!("you can only derive `DerivePartialModel` on named struct");
-        }),
         Err(Error::OverlappingAttributes(span)) => Ok(quote_spanned! {
             span => compile_error!("you can only use one of `from_col`, `from_expr`, `nested`");
         }),
